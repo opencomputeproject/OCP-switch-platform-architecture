@@ -358,7 +358,7 @@ This section defines the mandatory connectivity and interface standards required
 
 -   **Front-Panel Ports:** The design must incorporate two management ports. Two potential configurations are outlined below, and switch manufacturers should consult with the customer to determine the preferred implementation.
     -   2x1G RJ45 ports
-    -   1x1G RJ45 port + 1x10G SFP port
+    -   1x1G RJ45 port + 1x10G SFP+ port
 -   **Architecture:** Connectivity between the BMC, Host, and front-panel ports shall be facilitated by an unmanaged/EEPROM-configured *oob_switch* (e.g., Marvell 88E6321). The use of NC-SI (Network Controller Sideband Interface) is explicitly discouraged.
 -   **Operating Modes:**
     -   Simultaneous traffic concurrency must be supported on both management ports.
