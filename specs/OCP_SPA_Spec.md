@@ -138,19 +138,15 @@ Author: Yiyuan Huang and Zhiping Yao, Alibaba
 
 [14. Host Software Reference Design](#14-host-software-reference-design)
 
-[15.1. Device Driver Design](#151-device-driver-design)
+[14.1. Device Driver Design](#141-device-driver-design)
 
 [14.1.1. FPGA I/O Controller Discovery](#1411-fpga-io-controller-discovery)
-
-[FPGA I/O Controller Discovery](#fpga-io-controller-discovery)
 
 [14.1.2. IOB FPGA Driver Example](#1412-iob-fpga-driver-example)
 
 [14.1.3. User/Kernel ABI](#1413-userkernel-abi)
 
 [14.2. Platform Device Discovery](#142-platform-device-discovery)
-
-[14.1. Device Driver Design](#141-device-driver-design)
 
 [14.3. Platform Services Implementation Principles](#143-platform-services-implementation-principles)
 
@@ -563,7 +559,7 @@ The Main Carrier Board (MCB) functions as the root APE, housing the I/O Bridge F
 
 1.  **Platform Configuration:** The service retrieves the switch product name via *dmidecode* to load the appropriate platform configuration file, which outlines the APE topology and settings for all hardware revisions.
 2.  **Root APE Initialization:** Discovery commences at the root APE (MCB). It initializes the MCB IDPROM using information from the configuration file, leveraging the readily available Global (CPU-embedded) I2C bus.
-3.  **Revision-Specific Configuration:** With the IDPROM initialized, the service identifies the board revision and applies the corresponding configuration—such as EVT, DVT, or PVT—to match the specific hardware.
+3.  **Revision-Specific Configuration:** With the IDPROM initialized, the service identifies the board revision and applies the corresponding configuration—such as production phase (e.g., EVT, DVT, PVT) and hardware variant (e.g., component re-spin or alternate sourcing)—to match the specific hardware.
 4.  **Controller Setup:** Based on the applied configuration, the service initializes the I/O Bridge FPGA’s controllers (I2C, SPI, MDIO, GPIO, LED) along with any relevant sensors or voltage regulators on the MCB.
 5.  **Recursive Child Enumeration:** After the root APE is fully operational, the service recursively discovers and initializes all child APEs.
 6.  **Recursive Process for Child APEs:** This standard procedure applies to every APE:
@@ -721,7 +717,7 @@ The software stack is organized into three distinct layers to ensure modularity,
 
 A key benefit of this standard Switch Platform Architecture is that onboarding a new switch platform requires only a new configuration file that describes the APE topology and device settings. Once this configuration is loaded, all services are automatically initialized and function correctly, significantly accelerating development and platform onboarding.
 
-## 15.1. Device Driver Design
+## 14.1. Device Driver Design
 
 The I/O Bridge (IOB) FPGA is a physical PCIe device containing numerous IP blocks, such as I2C, SPI, MDIO, GPIO, and LED controllers. Our driver architecture utilizes a PCIe Umbrella driver to probe the FPGA and leverages the Linux Auxiliary bus to manage these I/O controllers (IP blocks).
 
@@ -730,8 +726,6 @@ Compared to the traditional Linux MFD (Multi-Function Device) framework, the Lin
 ![](images/image-15.png)
 
 ### 14.1.1. FPGA I/O Controller Discovery
-
-### FPGA I/O Controller Discovery
 
 The FPGA PCIe Umbrella driver requires a specific set of configuration parameters to enumerate I/O controllers, including I/O controller type, register offsets, controller counts, bus frequency, and client device settings (e.g., for SPI). These parameters can be provided to the driver using one of the following methods:
 
@@ -757,12 +751,9 @@ Platform software interacts with the hardware through standard Linux kernel ABIs
 -   **GPIO:** General purpose I/O is managed via sysfs or the libgpiod library. See [GPIO Guide](https://www.kernel.org/doc/html/latest/admin-guide/gpio/gpio-legacy.html).
 -   **HWMON:** Environmental telemetry (temperature, voltage, current) is exposed via the /sys/class/hwmon/ directory. See [HWMON Documentation](https://www.kernel.org/doc/html/latest/hwmon/index.html).
 -   **EEPROM:** Read and write access is typically provided through sysfs interfaces on the corresponding I2C device node.
-
-## 14.2. Platform Device Discovery
-
 -   **LEDs:** LED status and control are managed through the /sys/class/leds/ interface. See [LEDs Class Documentation](https://www.kernel.org/doc/html/latest/leds/leds-class.html).
 
-## 14.1. Device Driver Design
+## 14.2. Platform Device Discovery
 
 The PlatformDeviceDiscovery service orchestrates system discovery and initialization, utilizing a configuration-driven approach to abstract hardware variations from core management logic. It relies on a platform-specific configuration file (e.g., *platform_device.json*) to define the complete APE topology, encompassing I/O Bridge (IOB) FPGA register maps and client device settings.
 
@@ -771,7 +762,7 @@ The initialization process follows this deterministic sequence:
 1.  **Platform Identification:** The service retrieves the system name via *dmidecode* to load the platform-specific device configuration file.
 2.  **APE Topology Construction:** It builds a hierarchical inventory of Atomic Platform Entities (APEs) according to the defined topology.
 3.  **Device Enumeration:** Starting from the Root APE, the service traverses the hierarchy, reading each APE's IDPROM to verify board revisions and initializing the corresponding I/O controllers and client devices.
-4.  **Stable Mapping Creation:** To avoid reliance on dynamic Linux device indices, the service generates stable symbolic links (e.g., */run/devmap/i2c-buses/IOB_I2C_CONTROLLER_1* -> */dev/i2c-15*). These links ensure consistent access for platform services managing resources like sensors and fans.
+4.  **Stable Mapping Creation:** To avoid reliance on dynamic Linux device indices, the service generates stable symbolic links (e.g., */run/devmap/xcvrs/xcvr_io_1* -> */dev/i2c-15*). These links ensure consistent access for platform services managing resources like optical transceivers, sensors and fans.
 
 **Reference Code:**
 
