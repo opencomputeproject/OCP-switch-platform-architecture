@@ -288,9 +288,9 @@ The following logical diagram provides a detailed representation of the platform
 
 ![](images/image-03.png)
 
-Central to this architecture is the I/O Bridge (IOB) FPGA, which serves as the critical aggregation and translation layer between the Host CPU and platform peripherals. The IOB FPGA acts as the primary interface, exposing a suite of specialized I/O controllers—including I2C, GPIO, SPI, MDIO, etc — that enable the Host CPU to manage client devices such as sensors, fans, CPLDs, flashes, and EEPROMs.
+Central to this architecture is the I/O Bridge (IOB) FPGA(s), which serves as the critical aggregation and translation layer between the Host CPU and platform peripherals. Depending on the required I/O fan-out, a platform may implement this layer as a single IOB FPGA or as multiple IOB FPGAs. The IOB FPGA(s) acts as the primary interface, exposing a suite of specialized I/O controllers—including I2C, GPIO, SPI, MDIO, etc — that enable the Host CPU to manage client devices such as sensors, fans, CPLDs, flashes, and EEPROMs.
 
-To optimize performance and reliability, the IOB FPGA must connect to the Host CPU via a high-speed PCIe interface, facilitating memory-mapped software access. This configuration ensures that platform software can interact with these peripherals with low latency, providing a robust and scalable framework for managing complex hardware topologies.
+To optimize performance and reliability, each IOB FPGA must connect to the Host CPU via a high-speed PCIe interface, facilitating memory-mapped software access. This configuration ensures that platform software can interact with these peripherals with low latency, providing a robust and scalable framework for managing complex hardware topologies.
 
 # 7. System Power Management
 
@@ -307,7 +307,7 @@ Power supply modules must operate as intelligent, observable, and software-manag
     -   **Power_Good:** Connected to the Host GPIO controller (or CPLD) for real-time monitoring of power output status and failure events.
     -   **PSU_PSON:** Connected to the BMC GPIO/CPLD to allow the BMC to enable or disable the PSU.
 -   **Monitoring and Telemetry:** All power supply modules are required to implement a PMBus-compliant interface. This interface must provide platform software with real-time access to input/output voltage, current, power, temperature, and fan speed data.
--   **Reliability and Safety:** AC configurations must support 1+1 redundancy with active current sharing. All modules (AC/DC) must integrate autonomous, hardware-level shutdown circuits to protect the system from fault conditions—such as overcurrent, overvoltage, and thermal runaway—independent of software intervention. In the event of an over-temperature condition, output must be automatically restored once the condition clears (OTP), while overcurrent (OCP) and overvoltage (OVP) faults must latch off, requiring a manual power-cycle for recovery.
+-   **Reliability and Safety:** AC configurations must support N+1 redundancy or better, with active current sharing. All modules (AC/DC) must integrate autonomous, hardware-level shutdown circuits to protect the system from fault conditions—such as overcurrent, overvoltage, and thermal runaway—independent of software intervention. In the event of an over-temperature condition, output must be automatically restored once the condition clears (OTP), while overcurrent (OCP) and overvoltage (OVP) faults must latch off, requiring a manual power-cycle for recovery.
 -   **Firmware Lifecycle:** To facilitate ongoing maintenance, all FRU modules must support remote, field-upgradable firmware, preferably delivered via the PMBus interface.
 
 ## 7.2. Power Sequencing and State Initialization
@@ -315,8 +315,8 @@ Power supply modules must operate as intelligent, observable, and software-manag
 Upon initial system startup or following a switch-level power cycle, below hardware components shall be initialized to their designated states autonomously without software intervention:
 
 -   **BMC Subsystem:** The BMC subsystem shall be powered on automatically.
--   **Host Subsystem:** The Host (including CPU, ASICs, and Optics) must remain powered off or in reset mode until the BMC, or the Host Bringup watchdog, activates it.
--   **Host Bringup Watchdog:** While the BMC software typically initiates the Host power-on sequence, a hardware watchdog is required as a fallback to ensure Host availability in the event of a BMC failure. This watchdog will automatically trigger Host power-on following a 5-minute timeout. The BMC software is responsible for disabling the watchdog once Host power-good is asserted. If the Host is already powered on when the watchdog timer expires, the watchdog must not alter the existing power state.
+-   **Host Subsystem:** By default, the Host (including CPU, ASICs, and Optics) must remain powered off or in reset mode until the BMC, or the Host Bringup watchdog, activates it. The platform must additionally provide a mechanism, configurable in a non-volatile manner, to power the Host on at the same time as the BMC. This may be implemented either as a non-volatile, configurable Host Bringup watchdog timeout (see below) or as a dedicated non-volatile setting that powers the Host on immediately.
+-   **Host Bringup Watchdog:** While the BMC software typically initiates the Host power-on sequence, a hardware watchdog is required as a fallback to ensure Host availability in the event of a BMC failure. This watchdog will automatically trigger Host power-on following a 5-minute default timeout. The timeout should be configurable and retained in non-volatile storage so that the configured Host bring-up behavior persists across power cycles. The BMC software is responsible for disabling the watchdog once Host power-good is asserted. If the Host is already powered on when the watchdog timer expires, the watchdog must not alter the existing power state.
 -   **First-time Activation:** When the Host subsystem is powered on for the first time by BMC software:
     -   The switching ASIC(s) shall be brought out of reset automatically without Host software interaction.
     -   Optics modules shall remain in reset mode until brought out of reset by the optics management software running in Host.
@@ -331,6 +331,8 @@ This section defines the persistent power management capabilities required for t
 **BMC Power Management Capabilities:**
 
 -   The BMC must be capable of power cycling the entire switch (including both BMC and Host subsystems).
+-   The BMC must be capable of power cycling the Host CPU together with the data plane, including the switch ASIC and the transceivers.
+-   The BMC must be capable of power cycling the Host CPU only, leaving the data plane powered.
 -   The BMC must independently manage Host power states and reset signals.
 -   BMC-initiated resets must be performed seamlessly, without disrupting active Host operations.
 
@@ -341,8 +343,8 @@ This section defines the persistent power management capabilities required for t
     -   Manage optics module power and reset states, including low-power mode transitions.
     -   Reset the BMC subsystem for recovery purposes.
     -   Initiate a full-system power cycle.
+    -   Initiate a Host CPU reset, which does not interfere with ongoing BMC operations.
 -   Once the ASIC has exited reset, its forwarding engine must remain unaffected by Host CPU resets. While a Host CPU reset may trigger an ASIC PCIe-level reset if necessary, it must not induce an ASIC chip-level reset.
--   Host CPU resets must be executed seamlessly, ensuring no interference with ongoing BMC operations.
 
 # 8. Hardware Access
 
@@ -388,7 +390,7 @@ The serial console subsystem provides critical out-of-band access for low-level 
 -   The switch must feature a front-panel RJ45 serial port, defaulting to the BMC’s primary UART controller upon power-up.
 -   To enable direct BMC-to-Host communication, a dedicated BMC UART controller must link to the Host CPU’s UART controller.
 -   The front-panel serial port may connect directly to the BMC or through a MUX; manufacturers should consult the customer for the preferred setup.
--   If a MUX is used, administrators must be able to switch the front-panel connection to the Host’s secondary UART controller, either by configuring FPGA/CPLD registers from the BMC or using terminal hot keys.
+-   If a MUX is used, administrators must be able to switch the front-panel connection to the Host’s secondary UART controller, either by configuring FPGA/CPLD registers from the BMC or using terminal hot keys. The Host and BMC baud rates should be the same, with 115200 as the preferred console baud rate.
 
 ## 8.3. Optical Module Access
 
@@ -511,8 +513,9 @@ Below are the design requirements for the Platform Identifier IDPROM:
 
 ### 9.3.3. APE IDPROM Requirements
 
--   **IDPROM Format:** Please coordinate with the customer to confirm the required IDPROM format. For reference, the following format is utilized in Meta FBOSS switches:
-    -   <https://facebook.github.io/fboss/docs/platform/meta_eeprom_format_v6/>
+-   **IDPROM Format:** Please coordinate with the customer to confirm the required IDPROM format. Either of the following formats is acceptable:
+    -   The Meta EEPROM format, as utilized in Meta FBOSS switches: <https://facebook.github.io/fboss/docs/platform/meta_eeprom_format_v6/>
+    -   The ONIE TlvInfo EEPROM format: <https://opencomputeproject.github.io/onie/design-spec/hw_requirements.html>
 
 <!-- -->
 
@@ -594,7 +597,7 @@ The following specifications outline requirements for air-cooled, liquid-cooled,
 ### 10.2.1. Fan Management
 
 -   **Boot-time Thermal Governance:**
-    -   Upon a switch-level power cycle, all the system fans (PSU fans excluded) must default to 100% PWM duty cycle autonomously, to ensure thermal health without thermal management service.
+    -   Upon a switch-level power cycle, all the system fans (PSU fans excluded) must autonomously default to 100% PWM duty cycle, or to a sufficient fan speed to maintain system cooling when the ASIC is out of reset, to ensure thermal health without thermal management service.
     -   Operational fan speed adjustment is subsequently managed by a thermal management service based on system requirements.
 -   **Fan Interface and Telemetry (PWM and RPM):**
     -   All the system fans (PSU fans excluded) shall be accessible via a controller chip featuring upstream Linux *hwmon* support.
@@ -624,7 +627,7 @@ ASIC temperature reporting mechanisms vary across architectures, with some utili
 -   **Threshold Configuration:** The system must implement hardware/CPLD default thresholds effective at power-on, with provisions for software to adjust thermal limits via the I2C/SMBus interface.
 -   **Autonomous Power-Off Sequence:** Sensor alert signals are routed to a CPLD, which acts as the central control logic. Upon detecting an over-temperature condition, the CPLD automatically de-asserts the voltage regulator's Enable (EN) pin to force an immediate ASIC power-down. This design permits customizable shutdown logic without requiring physical hardware modifications.
 -   **Shutdown Latching:** The CPLD must latch the shutdown state; the system must only release this state via an explicit software write or a full power cycle, ensuring that ALERT de-assertion does not inadvertently restore power.
--   **Diagnostic Observability:** To facilitate root-cause analysis, any over-temperature event is captured by a "sticky bit" within the CPLD, providing a persistent record. This bit remains set until explicitly cleared by a write command or a full system power cycle.
+-   **Diagnostic Observability:** To facilitate root-cause analysis, any over-temperature event is captured by a "sticky bit" within the CPLD or DPM, providing a persistent record. This bit remains set until explicitly cleared by a write command or a full system power cycle.
 
 ![](images/image-12.png)
 
@@ -732,6 +735,7 @@ The FPGA PCIe Umbrella driver requires a specific set of configuration parameter
 1.  **ACPI Table:** I/O controller configurations are embedded directly within the ACPI tables, facilitating standard, ACPI-compliant device discovery.
 2.  **FPGA Memory-Mapped Space:** Configuration data is stored in a dedicated, self-describing memory region accessible via the FPGA's memory-mapped space.
 3.  **Userspace Interface:** I/O controller configurations are passed from userspace to the IOB FPGA PCIe (Umbrella) driver using sysfs or ioctl interfaces, allowing the driver to dynamically handle I/O controller creation.
+4.  **Device Tree Interface:** I/O controller configurations are described in Device Tree nodes, and the OS kernel dynamically instantiates the devices based on the Device Tree description.
 
 The Userspace Interface (#3) is preferred in the document, as it offers superior flexibility by allowing dynamic adjustments to device settings from userspace. This approach avoids the need for ACPI table modifications or FPGA firmware updates, thereby preventing service interruptions. The proposed ioctl interfaces for managing FPGA I/O controller creation and deletion from userspace are defined in the following header file:
 
@@ -841,6 +845,7 @@ Below table summarizes all the areas that need further clarification from custom
 -   **ASIC (Application-Specific Integrated Circuit):** The primary switching chip responsible for data plane traffic.
 -   **BMC (Baseboard Management Controller):** The independent, always-on subsystem responsible for system supervision, power sequencing, and fail-safe recovery.
 -   **CPLD (Complex Programmable Logic Device):** A hardware component used for glue logic, reset management, and I/O control.
+-   **DPM (Digital Power Manager):** A programmable power-management device used for power sequencing, monitoring, and fault recording.
 -   **GPIO (General Purpose Input/Output):** Generic pins on an integrated circuit whose behavior is controllable by software.
 -   **FPGA (Field Programmable Gate Array):** An integrated circuit designed to be configured after manufacturing; used here as an I/O Bridge (IOB).
 -   **FRU (Field Replaceable Unit):** A hardware module designed for easy removal and replacement by technicians.
