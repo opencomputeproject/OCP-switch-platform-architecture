@@ -390,7 +390,7 @@ The serial console subsystem provides critical out-of-band access for low-level 
 -   The switch must feature a front-panel RJ45 serial port, defaulting to the BMC’s primary UART controller upon power-up.
 -   To enable direct BMC-to-Host communication, a dedicated BMC UART controller must link to the Host CPU’s UART controller.
 -   The front-panel serial port may connect directly to the BMC or through a MUX; manufacturers should consult the customer for the preferred setup.
--   If a MUX is used, administrators must be able to switch the front-panel connection to the Host CPU’s console UART controller—the same controller that carries the direct BMC-to-Host link—either by configuring FPGA/CPLD registers from the BMC or using terminal hot keys.
+-   If a MUX is used, administrators must be able to switch the front-panel connection to the Host CPU’s console UART controller—the same controller that carries the direct BMC-to-Host link—either by configuring FPGA/CPLD registers from the BMC or using terminal hot keys. The Host and BMC baud rates should be the same.
 
 ## 8.3. Optical Module Access
 
