@@ -597,17 +597,17 @@ The following specifications outline requirements for air-cooled, liquid-cooled,
 ### 10.2.1. Fan Management
 
 -   **Boot-time Thermal Governance:**
-    -   Upon a switch-level power cycle, all the system fans (PSU fans excluded) must autonomously default to 100% PWM duty cycle, or to a sufficient fan speed to maintain system cooling when the ASIC is out of reset, to ensure thermal health without thermal management service.
+    -   Upon a switch-level power cycle, all system fans, excluding PSU fans, must autonomously default to a platform-validated safe PWM duty cycle, or to a sufficient fan speed to maintain system cooling when the ASIC is out of reset, to ensure thermal health without relying on the thermal management service.
     -   Operational fan speed adjustment is subsequently managed by a thermal management service based on system requirements.
 -   **Fan Interface and Telemetry (PWM and RPM):**
-    -   All the system fans (PSU fans excluded) shall be accessible via a controller chip featuring upstream Linux *hwmon* support.
+    -   All system fans, excluding PSU fans, shall be accessible via a controller chip featuring upstream Linux *hwmon* support.
     -   The *hwmon* interface must facilitate Pulse Width Modulation (PWM) for speed control and provide real-time Fan RPM telemetry.
 -   **Fan Watchdog Implementation:**
     -   To ensure proactive thermal protection, the system shall implement a fan watchdog mechanism.
     -   The watchdog must be disabled by default following a switch-level power cycle.
     -   The fan watchdog hardware shall provide register interfaces to allow for the customization of timeout values, ensuring compatibility with upstream Linux watchdog drivers.
     -   During normal operation, the thermal management service shall periodically 'kick' the watchdog to indicate system health.
-    -   Upon watchdog expiration, the system shall trigger an autonomous self-healing action, forcing all fan speeds to a 100% PWM duty cycle.
+    -   Upon watchdog expiration, the system shall autonomously set all system fans, excluding PSU fans, to a platform-validated safe PWM duty cycle sufficient to maintain thermal limits under the system’s maximum supported operating load.
     -   Following a timeout, the watchdog must remain in an 'expired' state. It shall provide a mechanism for software to clear this state and reset the watchdog, thereby resuming normal operational monitoring.
 -   **Presence and Alerting Validation:**
     -   **Presence Detection:** Each hot-swappable fan module must include a dedicated Presence GPIO line, routed through the system FPGA or CPLD. This signal shall be accessible to platform software, allowing for real-time monitoring of module insertion and removal events.
