@@ -194,9 +194,17 @@ NOTWITHSTANDING THE FOREGOING LICENSES, THIS SPECIFICATION IS PROVIDED BY OCP "A
 
 ## 2.2. Acknowledgements
 
-The Contributors of this Specification would like to acknowledge the following companies for their feedback:
+The OCP Open Switch Platform Architecture (OSPA) Working Group would like to thank the following organizations and individuals for their valuable feedback and contributions to this specification:
 
-To be updated later.
+-   **Accton:** Susan Tsao, Brandon Chuang
+-   **Arista:** Dean Kalla
+-   **Celestica:** Chun Dong, Krishnakumar Gowravaram
+-   **Cisco:** Scott Paulsen
+-   **Data Touch Innovative Technologies:** Kevin Yao
+-   **Micas:** Tim Zhou, Simon Zhao, William Liu, Eric Xiao, Elen Chen, Ivan Kong, Grant Lai, Gaia Gao, Scott Fan
+-   **Nexthop:** Ravindra Rama, Michael Chan, Ryan Torres, Gordon Martinez-Piedra, Roger Liao
+-   **Nvidia:** Mana Palai
+-   **Wistron:** Kevin Chen
 
 ------------------------------------------------------------------------
 
