@@ -2,7 +2,7 @@
 
 # Open Switch Platform Architecture: A Unified Network Switch Platform Reference Design
 
-Revision 0.9.0
+Revision 1.0.0
 
 **Software Specification**
 
@@ -162,11 +162,11 @@ Author: Yiyuan Huang and Zhiping Yao, Alibaba
 
 # 1. Version History
 
-| Date     | Version # | Author                                                                                                  | Description     |
-|----------|-----------|---------------------------------------------------------------------------------------------------------|-----------------|
-| 8/6/2026 | 0.9.0     | Tao Ren, Tian Fang and Xu Wang, Meta<br />Ying Xie and Guohan Lu, Microsoft<br />Yiyuan Huang and Zhiping Yao, Alibaba | Initial release |
-|          |           |                                                                                                           |                 |
-|          |           |                                                                                                           |                 |
+| Date      | Version # | Author                                                    | Description                                          |
+|-----------|-----------|-----------------------------------------------------------|------------------------------------------------------|
+| 8/6/2026  | 0.9.0     | Meta, Microsoft, Alibaba                                   | Initial release                                      |
+| 9/13/2026 | 1.0.0     | Meta, Microsoft, Alibaba; OSPA Working Group               | Incorporated feedback and improvements from partners |
+|           |           |                                                            |                                                      |
 
 # 2. License
 
