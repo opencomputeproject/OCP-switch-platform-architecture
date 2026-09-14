@@ -1,6 +1,6 @@
 ![](images/image-01.png)
 
-# Switch Platform Architecture: A Unified Network Switch Platform Reference Design
+# Open Switch Platform Architecture: A Unified Network Switch Platform Reference Design
 
 Revision 0.9.0
 
