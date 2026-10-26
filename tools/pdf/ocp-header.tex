@@ -1,0 +1,72 @@
+% LaTeX preamble for the OSPA spec PDF, following the 2024 OCP Base
+% Specification Template (v1.6). \ospatitle and \ospadate are set from the
+% document by ocp-spec.lua.
+\usepackage{xcolor}
+\definecolor{ocpgray}{HTML}{434343}
+\definecolor{ocpblue}{HTML}{1F4E79} % hyperlinks
+\providecommand{\ospatitle}{}
+\providecommand{\ospadate}{}
+
+% Template margins: 1" left/right/bottom; body text starts 1.44" from the top,
+% with the header 0.35" and the footer 0.5" from the page edge.
+\usepackage{geometry}
+\geometry{top=1.44in, bottom=1in, left=1in, right=1in,
+  headheight=14pt, headsep=0.9in, footskip=0.5in}
+
+% Template header: centered "Open Compute Project • <title>"; footer: date on
+% the left, "Page N" on the right; 10pt, no rules. The title page has neither.
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[C]{\small Open Compute Project \textbullet{} \ospatitle}
+\fancyfoot[L]{\small Date: \ospadate}
+\fancyfoot[R]{\small Page \thepage}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+% Chapter-opening pages (e.g. the ToC) use the same header/footer.
+\fancypagestyle{plain}{}
+
+% Headings carry their numbers in the Markdown text. LaTeX numbering must
+% still be enabled: hyperref only creates a link target for a heading when
+% its section counter steps, so with numbering off the ToC entries and PDF
+% bookmarks point at whatever anchor preceded the heading. Enable the
+% counters (after pandoc's own secnumdepth setting) and hide the generated
+% numbers in both the headings and the ToC.
+\AtBeginDocument{\setcounter{secnumdepth}{3}}
+\setcounter{tocdepth}{3}
+\AtBeginDocument{\renewcommand{\numberline}[1]{}}
+% Headings use LaTeX's standard \@startsection rather than titlesec. The link
+% target is placed inside the heading line (\@seccntformat is typeset at the
+% start of it, in place of the hidden number): a target placed before the
+% heading can be separated from it by a page break, which linked headings
+% that start a new page to the bottom of the previous page.
+% Template heading styles: Heading 1 14pt bold, Heading 2 12pt bold,
+% Heading 3 14pt regular in gray #434343; spacing before/after 20/6pt,
+% 18/6pt and 16/4pt.
+\makeatletter
+\renewcommand{\@seccntformat}[1]{\protect\phantomsection}
+\renewcommand{\section}{\@startsection{section}{1}{\z@}%
+  {-20pt \@plus -4pt \@minus -2pt}{6pt}%
+  {\normalfont\fontsize{14}{17}\selectfont\bfseries}}
+\renewcommand{\subsection}{\@startsection{subsection}{2}{\z@}%
+  {-18pt \@plus -4pt \@minus -2pt}{6pt}%
+  {\normalfont\fontsize{12}{14.5}\selectfont\bfseries}}
+\renewcommand{\subsubsection}{\@startsection{subsubsection}{3}{\z@}%
+  {-16pt \@plus -4pt \@minus -2pt}{4pt}%
+  {\normalfont\fontsize{14}{17}\selectfont\color{ocpgray}}}
+\makeatother
+
+% Figures stay where they appear in the text, with centered "Figure N: ..."
+% captions below them, as in the template.
+\usepackage{float}
+\floatplacement{figure}{H}
+\usepackage[labelsep=colon, justification=centering]{caption}
+
+% Tables: ocp-tables.py gives every table a full grid with a bold header row,
+% as in the template, which uses 1pt black borders. Add a little padding so
+% cell text does not touch the rules.
+\setlength{\arrayrulewidth}{1pt}
+\setlength{\extrarowheight}{2pt}
+
+% Keep wide images and tables inside the margins.
+\setlength{\emergencystretch}{3em}
