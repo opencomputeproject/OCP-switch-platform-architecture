@@ -48,6 +48,14 @@ Author: Yiyuan Huang and Zhiping Yao, Alibaba
 
 [6.2. Host Subsystem Architecture](#62-host-subsystem-architecture)
 
+[6.3. Platform Software Requirements](#63-platform-software-requirements)
+
+[6.3.1. Configuration-Driven Platform Model](#631-configuration-driven-platform-model)
+
+[6.3.2. User/Kernel ABI Requirements](#632-userkernel-abi-requirements)
+
+[6.3.3. Platform Services Requirements](#633-platform-services-requirements)
+
 [7. System Power Management](#7-system-power-management)
 
 [7.1. Power Supply Module](#71-power-supply-module)
@@ -148,11 +156,7 @@ Author: Yiyuan Huang and Zhiping Yao, Alibaba
 
 [14.1.2. IOB FPGA Driver Example](#1412-iob-fpga-driver-example)
 
-[14.1.3. User/Kernel ABI](#1413-userkernel-abi)
-
 [14.2. Platform Device Discovery](#142-platform-device-discovery)
-
-[14.3. Platform Services Implementation Principles](#143-platform-services-implementation-principles)
 
 [15. Hardware Bus and Controller Requirements](#15-hardware-bus-and-controller-requirements)
 
@@ -284,7 +288,7 @@ The proliferation of switch platforms across the industry has led to fragmented 
 
 The following sections outline the architectural framework:
 
--   **Switch Platform Architecture:** Outlines the partitioning between the BMC and Host subsystems.
+-   **Switch Platform Architecture:** Outlines the partitioning between the BMC and Host subsystems, and defines the platform software requirements.
 -   **System Power Management:** Details the initial power sequencing and BMC/Host power management capabilities.
 -   **Hardware Access:** Defines mandatory out-of-band management and connectivity requirements.
 -   **Hardware Inventory Management:** Establishes hierarchical topology and identification standards for inventory management.
@@ -327,6 +331,38 @@ The following logical diagram provides a detailed representation of the platform
 Central to this architecture is the I/O Bridge (IOB) FPGA(s), which serves as the critical aggregation and translation layer between the Host CPU and platform peripherals. Depending on the required I/O fan-out, a platform may implement this layer as a single IOB FPGA or as multiple IOB FPGAs. The IOB FPGA(s) acts as the primary interface, exposing a suite of specialized I/O controllers—including I2C, GPIO, SPI, MDIO, etc — that enable the Host CPU to manage client devices such as sensors, fans, CPLDs, flashes, and EEPROMs.
 
 To optimize performance and reliability, each IOB FPGA must connect to the Host CPU via a high-speed PCIe interface, facilitating memory-mapped software access. This configuration ensures that platform software can interact with these peripherals with low latency, providing a robust and scalable framework for managing complex hardware topologies.
+
+## 6.3. Platform Software Requirements
+
+Under the In-Host Model, platform software on the Host CPU manages all platform devices. This section defines the requirements on that software and on the kernel interfaces it relies on. The software is configuration-driven: onboarding a new switch platform requires only a new configuration file describing its hardware, not new platform-specific code. Many hardware requirements in the following sections exist to make this possible; the model below identifies them. Section 14 describes an informative reference implementation.
+
+### 6.3.1. Configuration-Driven Platform Model
+
+Platform software shall discover and initialize platform devices in the following sequence:
+
+1.  **Platform Identification:** The software identifies the switch platform from the product name reported by SMBIOS (e.g., `dmidecode -s system-product-name`). This requires the product name to be available before any platform-specific bus is known (section 9.4).
+2.  **Configuration Load:** The software loads the platform-specific configuration, which describes the Atomic Platform Entity (APE) topology, the I/O controllers of the IOB FPGA(s), and the settings of all client devices for every supported hardware revision.
+3.  **Top-Down Enumeration:** Starting at the Root APE, the software reads each APE's IDPROM to determine its type and hardware revision, applies the matching configuration, initializes the APE's I/O controllers and client devices, and then proceeds to the APE's children. This requires the Root APE IDPROM to be reachable on the Host CPU's embedded SMBus (section 9.3.1), an IDPROM on every software-managed APE (section 9.3), a tree-structured APE topology (section 9.2), and presence detection for hot-swappable APEs (section 9.5).
+4.  **Stable Device Links:** The software creates a stable symbolic link for each platform device (e.g., */run/devmap/xcvrs/xcvr_io_1* -> */dev/i2c-15*), so that platform services do not depend on dynamically assigned kernel device indices.
+
+### 6.3.2. User/Kernel ABI Requirements
+
+All platform devices must be accessible to platform software through standard Linux kernel ABIs, without platform-specific kernel interfaces. This ensures compatibility with common diagnostic and management tools. The required interfaces are:
+
+-   **I2C:** Bus-level communication via /dev/i2c-\* character devices. See [I2C User-space Interface](https://www.kernel.org/doc/html/latest/i2c/dev-interface.html).
+-   **GPIO:** General purpose I/O via sysfs or the libgpiod library. See [GPIO Guide](https://www.kernel.org/doc/html/latest/admin-guide/gpio/gpio-legacy.html).
+-   **HWMON:** Environmental telemetry (temperature, voltage, current, power, fan speed) and fan PWM control via the /sys/class/hwmon/ directory. See [HWMON Documentation](https://www.kernel.org/doc/html/latest/hwmon/index.html).
+-   **EEPROM:** Read and write access through sysfs interfaces on the corresponding I2C device node.
+-   **LEDs:** LED status and control via the /sys/class/leds/ interface. See [LEDs Class Documentation](https://www.kernel.org/doc/html/latest/leds/leds-class.html).
+-   **Watchdog:** Hardware watchdogs (e.g., the fan watchdog in section 10.2.1) via the Linux watchdog driver interface.
+-   **Flash:** Firmware stored in SPI flash accessible to standard utilities such as *flashrom* and *flashcp* (section 11.1).
+
+### 6.3.3. Platform Services Requirements
+
+Platform services—including sensor monitoring, fan control, LED management, and firmware upgrade utilities—shall be hardware-agnostic, so that they run unmodified across switch platforms. All platform-specific information shall be provided by the platform configuration. In addition:
+
+-   **Stable Device References:** To decouple management logic from dynamically assigned kernel device paths (e.g., /dev/i2c-\* or /sys/class/hwmon/hwmon\*), all services shall reference devices using the stable symbolic links defined in section 6.3.1.
+-   **Standardized I/O Interfaces:** All platform services must interact with hardware through the standard Linux User/Kernel ABIs defined in section 6.3.2. By relying on these standard ABIs, the platform services ensure compatibility with mainstream diagnostic tools and facilitate a clean, maintainable software stack that does not require platform-specific modifications.
 
 # 7. System Power Management
 
@@ -569,7 +605,7 @@ Below are the design requirements for the Platform Identifier IDPROM:
 
 The switch manufacturer shall make sure the switch product name can be fetched by running “dmidecode -s system-product-name”, and the product name shall be identical to the product name in the Platform Identifier IDPROM.
 
-The Platform Device Discovery service fetches product name from dmidecode and loads the corresponding platform services configuration files to understand the APE topology and device settings. Please note the Platform Identifier IDPROM cannot be used in this scenario because the IDPROM's bus/address are platform specific and therefore unknown before configuration load.
+The platform software fetches the product name from dmidecode and loads the corresponding platform configuration files to understand the APE topology and device settings (section 6.3.1). Please note the Platform Identifier IDPROM cannot be used in this scenario because the IDPROM's bus/address are platform specific and therefore unknown before configuration load.
 
 ## 9.5. Platform Device Enumeration
 
@@ -588,7 +624,7 @@ The platform software is responsible for dynamic system discovery and initializa
 
 ## 9.6. Case Study: Minipack3 Device Enumeration
 
-To illustrate the APE framework and device enumeration, we use the Meta Minipack3 switch as a practical reference. Detailed design specifications for the Minipack3 can be found here:
+To illustrate the APE framework and the device enumeration defined in section 6.3.1, we use the Meta Minipack3 switch as a practical reference. Detailed design specifications for the Minipack3 can be found here:
 
 -   [Minipack3 Design Package](https://www.opencompute.org/documents/meta-minipack3-design-package-zip)
 
@@ -735,7 +771,7 @@ Please coordinate specific implementation requirements with the customer. Unless
 
 # 14. Host Software Reference Design
 
-The Host software architecture follows the "In-Host" management model, leveraging the Host's computational resources to manage platform devices.
+This section is informative. It describes a reference implementation of the platform software requirements in section 6.3, based on the open-source FBOSS platform software deployed across over 10 production switch platforms. The Host software architecture follows the "In-Host" management model, leveraging the Host's computational resources to manage platform devices.
 
 ![Host Software Stack](images/image-14.png)
 
@@ -745,7 +781,11 @@ The software stack is organized into three distinct layers to ensure modularity,
 2.  **Platform Device Discovery Layer:** This layer handles dynamic system discovery and initialization based on the hierarchical Atomic Platform Entity (APE) topology.
 3.  **Platform Services and Utilities:** This layer hosts high-level management services, such as sensor telemetry, thermal control, LED management, and firmware maintenance.
 
-A key benefit of this standard Switch Platform Architecture is that onboarding a new switch platform requires only a new configuration file that describes the APE topology and device settings. Once this configuration is loaded, all services are automatically initialized and function correctly, significantly accelerating development and platform onboarding.
+With this architecture, onboarding a new switch platform requires only a new configuration file that describes the APE topology and device settings. Once this configuration is loaded, all services are automatically initialized and function correctly, significantly accelerating development and platform onboarding.
+
+**Reference Code:**
+
+-   <https://github.com/facebook/fboss/tree/main/fboss/platform>
 
 ## 14.1. Device Driver Design
 
@@ -774,19 +814,9 @@ The repository linked below provides the I/O Bridge FPGA drivers currently deplo
 
 -   <https://github.com/facebookincubator/fboss.bsp.kmods/tree/main/kmods>
 
-### 14.1.3. User/Kernel ABI
-
-Platform software interacts with the hardware through standard Linux kernel ABIs, ensuring compatibility with common diagnostic and management tools. The following interfaces are utilized:
-
--   **I2C:** Bus-level communication is managed via /dev/i2c-\* character devices. See [I2C User-space Interface](https://www.kernel.org/doc/html/latest/i2c/dev-interface.html).
--   **GPIO:** General purpose I/O is managed via sysfs or the libgpiod library. See [GPIO Guide](https://www.kernel.org/doc/html/latest/admin-guide/gpio/gpio-legacy.html).
--   **HWMON:** Environmental telemetry (temperature, voltage, current) is exposed via the /sys/class/hwmon/ directory. See [HWMON Documentation](https://www.kernel.org/doc/html/latest/hwmon/index.html).
--   **EEPROM:** Read and write access is typically provided through sysfs interfaces on the corresponding I2C device node.
--   **LEDs:** LED status and control are managed through the /sys/class/leds/ interface. See [LEDs Class Documentation](https://www.kernel.org/doc/html/latest/leds/leds-class.html).
-
 ## 14.2. Platform Device Discovery
 
-The PlatformDeviceDiscovery service orchestrates system discovery and initialization, utilizing a configuration-driven approach to abstract hardware variations from core management logic. It relies on a platform-specific configuration file (e.g., *platform_device.json*) to define the complete APE topology, encompassing I/O Bridge (IOB) FPGA register maps and client device settings.
+The PlatformDeviceDiscovery service implements the configuration-driven platform model of section 6.3.1. It orchestrates system discovery and initialization, utilizing a configuration-driven approach to abstract hardware variations from core management logic. It relies on a platform-specific configuration file (e.g., *platform_device.json*) to define the complete APE topology, encompassing I/O Bridge (IOB) FPGA register maps and client device settings.
 
 The initialization process follows this deterministic sequence:
 
@@ -798,17 +828,6 @@ The initialization process follows this deterministic sequence:
 **Reference Code:**
 
 -   <https://github.com/facebook/fboss/tree/main/fboss/platform/platform_manager>
-
-## 14.3. Platform Services Implementation Principles
-
-Platform services—including sensor monitoring, fan control, and firmware upgrade utilities—are architected to be hardware-agnostic, enabling seamless portability across different switch platforms. The implementation adheres to the following core principles:
-
--   **Stable Device References:** To decouple management logic from dynamically assigned kernel device paths (e.g., /dev/i2c-\* or /sys/class/hwmon/hwmon\*), all services shall reference devices using stable symlinks created by the PlatformDeviceDiscovery service.
--   **Standardized I/O Interfaces:** All platform services must interact with hardware through standard Linux User/Kernel ABIs. This approach leverages the native Linux driver ecosystem, using interfaces such as sysfs for GPIO and LED control, hwmon for environmental telemetry, and ioctl for low-level bus management. By relying on these standard ABIs, the platform services ensure compatibility with mainstream diagnostic tools and facilitate a clean, maintainable software stack that does not require platform-specific modifications.
-
-**Reference Code:**
-
--   <https://github.com/facebook/fboss/tree/main/fboss/platform>
 
 # 15. Hardware Bus and Controller Requirements
 
