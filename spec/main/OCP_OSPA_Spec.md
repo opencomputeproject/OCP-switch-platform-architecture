@@ -1,10 +1,10 @@
 ![](images/image-01.png)
 
-# Open Switch Platform Architecture: A Unified Network Switch Platform Reference Design
+# Open Switch Platform Architecture (OSPA) Base Specification
 
-Revision 1.0.0
+0.8.0
 
-**Software Specification**
+Base Specification
 
 Effective Aug. 6, 2026
 
@@ -36,11 +36,15 @@ Author: Yiyuan Huang and Zhiping Yao, Alibaba
 
 [4. Scope](#4-scope)
 
+[4.1. Requirements Language](#41-requirements-language)
+
+[4.2. Terminology](#42-terminology)
+
 [5. Overview](#5-overview)
 
 [6. Switch Platform Architecture](#6-switch-platform-architecture)
 
-[6.1. BMC & Host Connectivity](#61-bmc-host-connectivity)
+[6.1. BMC & Host Connectivity](#61-bmc--host-connectivity)
 
 [6.2. Host Subsystem Architecture](#62-host-subsystem-architecture)
 
@@ -132,7 +136,7 @@ Author: Yiyuan Huang and Zhiping Yao, Alibaba
 
 [13.1. IPMI](#131-ipmi)
 
-[13.2. Processor & System Error Reporting](#132-processor-system-error-reporting)
+[13.2. Processor & System Error Reporting](#132-processor--system-error-reporting)
 
 [13.3. Hardware Fault Logger](#133-hardware-fault-logger)
 
@@ -150,23 +154,29 @@ Author: Yiyuan Huang and Zhiping Yao, Alibaba
 
 [14.3. Platform Services Implementation Principles](#143-platform-services-implementation-principles)
 
-[Appendix A: I2C Design Best Practices](#appendix-a-i2c-design-best-practices)
+[15. Hardware Bus and Controller Requirements](#15-hardware-bus-and-controller-requirements)
 
-[Appendix B: SPI Design Best Practices](#appendix-b-spi-design-best-practices)
+[15.1. I2C Design Requirements](#151-i2c-design-requirements)
 
-[Appendix C: I/O Bridge FPGA Best Practices](#appendix-c-io-bridge-fpga-best-practices)
+[15.2. SPI Design Requirements](#152-spi-design-requirements)
 
-[Appendix D: Customer Consultation Checklist](#appendix-d-customer-consultation-checklist)
+[15.3. I/O Bridge FPGA Requirements](#153-io-bridge-fpga-requirements)
 
-[Appendix E: Glossary](#appendix-e-glossary)
+[16. References](#16-references)
+
+[Appendix A: Liquid Leak Detection Best Practices](#appendix-a-liquid-leak-detection-best-practices)
+
+[Appendix B: Customer Consultation Checklist](#appendix-b-customer-consultation-checklist)
+
+[Appendix C: Glossary](#appendix-c-glossary)
 
 # 1. Version History
 
-| Date      | Version # | Author                                                    | Description                                          |
-|-----------|-----------|-----------------------------------------------------------|------------------------------------------------------|
-| 8/6/2026  | 0.9.0     | Meta, Microsoft, Alibaba                                   | Initial release                                      |
-| 9/13/2026 | 1.0.0     | Meta, Microsoft, Alibaba; OSPA Working Group               | Incorporated feedback and improvements from partners |
-|           |           |                                                            |                                                      |
+| Date           | Version #   | Author                                       | Description                                        |
+|----------------|-------------|----------------------------------------------|----------------------------------------------------|
+| 06 AUG 26      | 0.7.0       | Meta, Microsoft, Alibaba                     | Initial release                                    |
+| 27 OCT 26      | 0.8.0       | Meta, Microsoft, Alibaba; OSPA Working Group | Incorporated feedback from partners and OCP review |
+|                |             |                                              |                                                    |
 
 # 2. License
 
@@ -251,6 +261,23 @@ This specification is limited to the switch platform management layer. Although 
 
 Data and control plane operations—such as routing protocols and forwarding management—are outside the scope of this document.
 
+## 4.1. Requirements Language
+
+The key words "must", "must not", "shall", "shall not", "should", "should not", "may", and "optional" in this specification are to be interpreted as described in BCP 14 (RFC 2119 and RFC 8174). "Must" and "shall" denote mandatory requirements, "should" denotes a recommendation, and "may" denotes an optional feature.
+
+Where a requirement states that it is to be confirmed with the customer, the default stated in the same section applies unless the customer specifies otherwise. Appendix B summarizes these items.
+
+Sections and statements identified as a "Case Study", "Reference Design", "Example", or "Note", and all appendices, are informative.
+
+## 4.2. Terminology
+
+The following terms are used with the specific meanings below. Generic terms are qualified where the distinction matters.
+
+-   **Switching ASIC:** The data plane forwarding chip(s) of the switch. Other ASICs on the platform are referred to by their function (e.g., retimer, PHY).
+-   **IOB FPGA:** The I/O Bridge FPGA(s) that expose I/O controllers to the Host CPU over PCIe, as defined in section 6.2.
+-   **Power-control CPLD:** The always-on CPLD (or equivalent auxiliary-domain logic) that implements power sequencing, power cycling, and reset control, as defined in section 7.3.
+-   **System CPLD / system FPGA:** Any other programmable logic device that implements platform glue logic, such as GPIO expansion, presence detection, or LED control. Where a requirement allows a signal to be connected to "a CPLD", any system CPLD or the IOB FPGA that is accessible to the stated subsystem (Host or BMC) satisfies the requirement.
+
 # 5. Overview
 
 The proliferation of switch platforms across the industry has led to fragmented and redundant platform software development efforts. This specification addresses the challenge by defining a unified reference architecture for the switch platform layer, aimed at simplifying and accelerating the platform onboarding process.
@@ -266,6 +293,7 @@ The following sections outline the architectural framework:
 -   **Security:** Describes foundational security requirements.
 -   **Debuggability**: Defines best practices to improve switch debuggability.
 -   **Host Software Reference Design**: Describes a configuration-driven approach for implementing platform software.
+-   **Hardware Bus and Controller Requirements**: Defines low-level I2C, SPI, and I/O Bridge FPGA requirements.
 
 Codifying these architectural guidelines accelerates platform onboarding by promoting reusable hardware designs and leveraging established software stacks; simultaneously, the resulting standardized platform design minimizes long-term maintenance and operational costs.
 
@@ -278,9 +306,9 @@ Modern network switch architectures feature two primary processing domains: the 
 
 This specification focuses exclusively on the **In-Host Model**. By running the platform software on the Host, the architecture leverages the Host's computational resources and integrates platform management directly into the primary software ecosystem, improving maintainability and feature velocity.
 
-### 6.1. BMC & Host Connectivity
+## 6.1. BMC & Host Connectivity
 
-![](images/image-02.png)
+![BMC and Host Connectivity](images/image-02.png)
 
 Reliable communication between the BMC and Host subsystems is essential for system coordination. The platform must implement the following interfaces:
 
@@ -290,11 +318,11 @@ Reliable communication between the BMC and Host subsystems is essential for syst
 -   **USB:** Provides a redundant diagnostic and recovery path, utilizing serial or Ethernet-over-USB communication between the Host and BMC.
 -   **Power Management Interconnects:** Utilizes dedicated hardware paths (e.g., GPIOs, CPLD signals) enabling the BMC to manage Host power states and reset lines. This architecture grants the BMC the authority to power cycle the Host subsystem specifically, as well as the capability to power cycle the entire switch platform independently of the Host OS state.
 
-### 6.2. Host Subsystem Architecture
+## 6.2. Host Subsystem Architecture
 
 The following logical diagram provides a detailed representation of the platform device topology within the Host subsystem:
 
-![](images/image-03.png)
+![Host Subsystem Platform Device Topology](images/image-03.png)
 
 Central to this architecture is the I/O Bridge (IOB) FPGA(s), which serves as the critical aggregation and translation layer between the Host CPU and platform peripherals. Depending on the required I/O fan-out, a platform may implement this layer as a single IOB FPGA or as multiple IOB FPGAs. The IOB FPGA(s) acts as the primary interface, exposing a suite of specialized I/O controllers—including I2C, GPIO, SPI, MDIO, etc — that enable the Host CPU to manage client devices such as sensors, fans, CPLDs, flashes, and EEPROMs.
 
@@ -308,12 +336,12 @@ This section defines the architectural requirements for the switch's power deliv
 
 Power supply modules must operate as intelligent, observable, and software-manageable components. The following specifications detail the architectural and operational requirements necessary for integration within the platform.
 
--   **Input Types:** Power supplies must accommodate AC or DC inputs, or both, aligned with client’s specific rack and data center infrastructure requirements.
+-   **Input Types:** The PSU input type (AC, DC, or both) and input voltage range are determined by the customer's rack and data center power infrastructure (see Appendix B). The platform must support the PSU input type and voltage range specified by the customer, and every PSU installed in a given platform must use the same input type. Because facility power cannot be assumed, this specification defines no default input type; the customer must specify it.
 -   **Form Factor:** Power Supply modules may be implemented as either integrated power brick modules or Field Replaceable Units (FRU).
 -   **FRU Design:** Power Supply Units (PSUs) configured as Field Replaceable Units (FRUs) must feature tool-less, hot-swappable mechanisms with secure latching. PSU Fan management should be handled entirely by the FRU's internal firmware to decouple PSU’s thermal control from the platform software layer. Additionally, each FRU must provide the following signals for software management:
     -   **Presence:** Connected to the Host GPIO controller (or CPLD) for real-time detection of module insertion and removal events.
     -   **Power_Good:** Connected to the Host GPIO controller (or CPLD) for real-time monitoring of power output status and failure events.
-    -   **PSU_PSON:** Connected to the BMC GPIO/CPLD to allow the BMC to enable or disable the PSU.
+    -   **PSU_PSON:** Connected to a BMC GPIO (or a BMC-accessible CPLD register) to allow the BMC to enable or disable the PSU output. The signal must behave as the PMBus CONTROL signal defined in the PMBus Power System Management Protocol Specification, Part I, with its polarity and on/off behavior reported through the PMBus ON_OFF_CONFIG command (Part II). BMC software must provide an interface for administrators and the Host to query the PSON state of each PSU and to enable or disable each PSU.
 -   **Monitoring and Telemetry:** All power supply modules are required to implement a PMBus-compliant interface. This interface must provide platform software with real-time access to input/output voltage, current, power, temperature, and fan speed data.
 -   **Reliability and Safety:** AC configurations must support N+1 redundancy or better, with active current sharing. All modules (AC/DC) must integrate autonomous, hardware-level shutdown circuits to protect the system from fault conditions—such as overcurrent, overvoltage, and thermal runaway—independent of software intervention. In the event of an over-temperature condition, output must be automatically restored once the condition clears (OTP), while overcurrent (OCP) and overvoltage (OVP) faults must latch off, requiring a manual power-cycle for recovery.
 -   **Firmware Lifecycle:** To facilitate ongoing maintenance, all FRU modules must support remote, field-upgradable firmware, preferably delivered via the PMBus interface.
@@ -325,16 +353,16 @@ Upon initial system startup or following a switch-level power cycle, below hardw
 -   **BMC Subsystem:** The BMC subsystem shall be powered on automatically.
 -   **Host Subsystem:** By default, the Host (including CPU, ASICs, and Optics) must remain powered off or in reset mode until the BMC, or the Host Bringup watchdog, activates it.
 -   **Host Bringup Watchdog:** While the BMC software typically initiates the Host power-on sequence, a hardware watchdog is required as a fallback to ensure Host availability in the event of a BMC failure. This watchdog will automatically trigger Host power-on following a 5-minute default timeout. A configurable timeout, and retaining that configuration in non-volatile storage is nice to have so the configured Host bring-up behavior persists across power cycles. The BMC software is responsible for disabling the watchdog once Host power-good is asserted. If the Host is already powered on when the watchdog timer expires, the watchdog must not alter the existing power state.
--   **First-time Activation:** When the Host subsystem is powered on for the first time by BMC software:
+-   **First-time Activation:** When the Host subsystem is powered on for the first time, whether by BMC software or by the Host Bringup Watchdog, the following states apply:
     -   The switching ASIC(s) shall be brought out of reset automatically without Host software interaction.
     -   Optics modules shall remain in reset mode until brought out of reset by the optics management software running in Host.
-    -   The hardware design must ensure the ASIC can always be enumerated on the PCIe bus, and the corresponding IO/memory/interrupt resources are allocated properly across Host CPU resets, without software interaction.
+    -   The hardware design must ensure the switching ASIC(s) can always be enumerated on the PCIe bus, and the corresponding IO/memory/interrupt resources are allocated properly across Host CPU resets, without software interaction.
 
 ## 7.3. Power Control and Operational Logic
 
 This section defines the persistent power management capabilities required for the system:
 
--   An always-on CPLD or auxiliary-domain power sequencer must be implemented, providing a "cycle with automatic restore after N seconds" primitive accessible to both the BMC and the Host.
+-   An always-on power-control CPLD or auxiliary-domain power sequencer must be implemented, providing a "cycle with automatic restore after N seconds" primitive accessible to both the BMC and the Host.
 
 **BMC Power Management Capabilities:**
 
@@ -347,12 +375,12 @@ This section defines the persistent power management capabilities required for t
 **Host Power Management Capabilities:**
 
 -   The system design must enable Host software to:
-    -   Perform ASIC chip-level and PCIe-level resets where applicable.
+    -   Perform switching ASIC chip-level and PCIe-level resets where applicable.
     -   Manage optics module power and reset states, including low-power mode transitions.
     -   Reset the BMC subsystem for recovery purposes.
     -   Initiate a full-system power cycle.
     -   Initiate a Host CPU reset, which does not interfere with ongoing BMC operations.
--   Once the ASIC has exited reset, its forwarding engine must remain unaffected by Host CPU resets. While a Host CPU reset may trigger an ASIC PCIe-level reset if necessary, it must not induce an ASIC chip-level reset.
+-   Once the switching ASIC has exited reset, its forwarding engine must remain unaffected by Host CPU resets. While a Host CPU reset may trigger a switching ASIC PCIe-level reset if necessary, it must not induce a switching ASIC chip-level reset.
 
 # 8. Hardware Access
 
@@ -362,10 +390,10 @@ This section defines the mandatory connectivity and interface standards required
 
 ### 8.1.1. Ethernet Connectivity and Port Requirements
 
--   **Front-Panel Ports:** The design must incorporate two management ports. Two potential configurations are outlined below, and switch manufacturers should consult with the customer to determine the preferred implementation.
+-   **Front-Panel Ports:** The design must incorporate two management ports. Two potential configurations are outlined below, and switch manufacturers should consult with the customer to determine the preferred implementation. If the customer does not specify a configuration, the 2x1G RJ45 configuration (Design #1 in section 8.1.3) shall be implemented.
     -   2x1G RJ45 ports
     -   1x1G RJ45 port + 1x10G SFP+ port
--   **Architecture:** Connectivity between the BMC, Host, and front-panel ports shall be facilitated by an unmanaged/EEPROM-configured *oob_switch* (e.g., Marvell 88E6321). The use of NC-SI (Network Controller Sideband Interface) is explicitly discouraged.
+-   **Architecture:** Connectivity between the BMC, Host, and front-panel ports shall be facilitated by an unmanaged/EEPROM-configured Ethernet switch (*oob_switch*) that provides a port for each of the BMC, the Host, and every front-panel management port, supports the front-panel port speeds defined above, and meets the *oob_switch* management requirements in section 8.1.2. The use of NC-SI (Network Controller Sideband Interface) is explicitly discouraged.
 -   **Operating Modes:**
     -   Simultaneous traffic concurrency must be supported on both management ports.
 
@@ -383,37 +411,37 @@ This section defines the mandatory connectivity and interface standards required
 
 -   **Design #1 (2x1G RJ45 ports):**
 
-![](images/image-04.png)
+![OOB Ethernet Reference Design #1 (2x1G RJ45)](images/image-04.png)
 
 -   **Design #2 (1x1G RJ45 & 1x10G SFP+):**
 
-![](images/image-05.png)
+![OOB Ethernet Reference Design #2 (1x1G RJ45 and 1x10G SFP+)](images/image-05.png)
 
 ## 8.2. Serial Console Access
 
-![](images/image-06.png)
+![Serial Console Topology](images/image-06.png)
 
 The serial console subsystem provides critical out-of-band access for low-level debugging, BIOS configuration, OS recovery, etc. The design shall adhere to the following specifications:
 
 -   The switch must feature a front-panel RJ45 serial port, defaulting to the BMC’s primary UART controller upon power-up.
 -   To enable direct BMC-to-Host communication, a dedicated BMC UART controller must link to the Host CPU’s UART controller.
--   The front-panel serial port may connect directly to the BMC or through a MUX; manufacturers should consult the customer for the preferred setup.
+-   The front-panel serial port may connect directly to the BMC or through a MUX; manufacturers should consult the customer for the preferred setup. If the customer does not specify a setup, the front-panel serial port shall connect directly to the BMC.
 -   If a MUX is used, administrators must be able to switch the front-panel connection to the Host CPU’s console UART controller—the same controller that carries the direct BMC-to-Host link—either by configuring FPGA/CPLD registers from the BMC or using terminal hot keys. The Host and BMC baud rates should be the same.
 
 ## 8.3. Optical Module Access
 
 Host-side management of optical modules is facilitated via dedicated I2C and GPIO interfaces, enabling parallel access and robust control. Below is the logical diagram for reference:
 
-![](images/image-07.png)
+![Optical Module Management Interfaces](images/image-07.png)
 
 ### 8.3.1. Hardware Design Guidelines
 
--   **I2C Connectivity:** Each optical module shall be assigned a dedicated I2C controller. The use of external or internal multiplexers is strictly prohibited to ensure full parallel access and reliable firmware upgrades. Refer to Appendix A for generic I2C design guidelines.
+-   **I2C Connectivity:** Each optical module shall be assigned a dedicated I2C controller. The use of external or internal multiplexers is strictly prohibited to ensure full parallel access and reliable firmware upgrades. Refer to section 15.1 for generic I2C design requirements.
 -   **GPIO Signals:** The hardware design must provide the following dedicated GPIO lines connected to the Host’s GPIO controller or CPLD:
     -   **Presence:** An input signal utilized for real-time hot-plug detection.
     -   **Interrupt:** An input signal dedicated to signaling events from optical modules.
     -   **Reset:** An output signal governing the module's reset state. Optics must default to an "in-reset" state upon power-up, requiring platform management software to initialize the transition out of reset.
-    -   **Low Power:** An output signal managing transitions into low-power modes. By default, modules should initiate in a low-power state following a power cycle (please confirm specific requirements with the customer).
+    -   **Low Power:** An output signal managing transitions into low-power modes. Unless the customer specifies otherwise, modules shall initiate in a low-power state following a power cycle.
     -   **Module Select:** An output signal that must remain permanently enabled.
 
 ### 8.3.2. I2C Controller Requirements
@@ -423,13 +451,13 @@ It’s desired to incorporate the following features into the I2C controllers:
 -   **Bus Recovery:** Controllers shall include a software-accessible reset bit to enable transaction aborts and recover from bus-stuck conditions.
 -   **Telemetry:** Controllers should ideally feature statistics registers for tracking transaction history and error metrics, such as timeouts and NACKs.
 -   **Bus Speed:** A minimum 100KHz clock frequency is required for standard operations, with FPGA designs supporting dynamic runtime clock adjustments.
--   **Optics Firmware Upgrade:** For firmware upgrades, controllers should support higher clock frequencies (e.g., 400KHz to 1MHz); manufacturers should verify the required frequency with the customer.
+-   **Optics Firmware Upgrade:** For firmware upgrades, controllers should support higher clock frequencies (e.g., 400KHz to 1MHz); manufacturers should verify the required frequency with the customer. If the customer does not specify a frequency, controllers shall support at least 400KHz.
 
 ## 8.4. Optical Retimer Access
 
 In modern switches utilizing high-speed optical modules, Retimers are essential to maintain signal integrity by compensating for signal degradation over long board traces. These retimers shall be managed by platform software via the MDIO bus.
 
-![](images/image-08.png)
+![Optical Retimer Management via MDIO](images/image-08.png)
 
 The following hardware requirements must be met for this management:
 
@@ -455,7 +483,7 @@ Note:
 
 ### 8.5.2. Operational Logic
 
-The following table outlines the recommended LED color coding and status conditions. The proposed scheme uses Blue to indicate normal operation and Amber for alert conditions. Final requirements should be confirmed with the customer.
+The following table defines the default LED color coding and status conditions. The scheme uses Blue to indicate normal operation and Amber for alert conditions. Unless the customer specifies otherwise, the LED behavior in the following table shall be implemented.
 
 | **LED**           | **OFF**          | **Blue (Normal)**                  | **Amber (Alert)**                            | **Blink Patterns**                  |
 |-------------------|------------------|------------------------------------|----------------------------------------------|-------------------------------------|
@@ -465,7 +493,7 @@ The following table outlines the recommended LED color coding and status conditi
 
 ## 8.6. USB Topology
 
-![](images/image-09.png)
+![USB Topology](images/image-09.png)
 
 The USB topology is illustrated above; the corresponding design requirements are outlined below.
 
@@ -521,7 +549,7 @@ Below are the design requirements for the Platform Identifier IDPROM:
 
 ### 9.3.3. APE IDPROM Requirements
 
--   **IDPROM Format:** Please coordinate with the customer to confirm the required IDPROM format. Either of the following formats is acceptable:
+-   **IDPROM Format:** Please coordinate with the customer to confirm the required IDPROM format. Either of the following formats is acceptable; if the customer does not specify a format, the Meta EEPROM format (version 6 or later) shall be used:
     -   The Meta EEPROM format, as utilized in Meta FBOSS switches: <https://facebook.github.io/fboss/docs/platform/meta_eeprom_format_v6/>
     -   The ONIE TlvInfo EEPROM format: <https://opencomputeproject.github.io/onie/design-spec/hw_requirements.html>
 
@@ -564,7 +592,7 @@ To illustrate the APE framework and device enumeration, we use the Meta Minipack
 
 -   [Minipack3 Design Package](https://www.opencompute.org/documents/meta-minipack3-design-package-zip)
 
-![](images/image-10.png)
+![Minipack3 APE Topology (Case Study)](images/image-10.png)
 
 The Main Carrier Board (MCB) functions as the root APE, housing the I/O Bridge FPGA that provides I2C, SPI, MDIO, and GPIO connectivity for all other PCBAs. The Platform Device Discovery service manages enumeration and initialization through the following workflow:
 
@@ -574,9 +602,9 @@ The Main Carrier Board (MCB) functions as the root APE, housing the I/O Bridge F
 4.  **Controller Setup:** Based on the applied configuration, the service initializes the I/O Bridge FPGA’s controllers (I2C, SPI, MDIO, GPIO, LED) along with any relevant sensors or voltage regulators on the MCB.
 5.  **Recursive Child Enumeration:** After the root APE is fully operational, the service recursively discovers and initializes all child APEs.
 6.  **Recursive Process for Child APEs:** This standard procedure applies to every APE:
-    1.  1\. Initialize the IDPROM and verify the board revision.
-    2.  2\. Load the configuration entry matching the revision and initialize associated devices.
-    3.  3\. Proceed to traverse and initialize the next level of child APEs.
+    1.  Initialize the IDPROM and verify the board revision.
+    2.  Load the configuration entry matching the revision and initialize associated devices.
+    3.  Proceed to traverse and initialize the next level of child APEs.
 
 # 10. Environment Monitoring and Control
 
@@ -584,19 +612,19 @@ The Main Carrier Board (MCB) functions as the root APE, housing the I/O Bridge F
 
 Modern network switches utilize a vast array of hardware sensors to monitor/manage voltage rails, current draw, power metrics, and thermal conditions throughout the system. These sensors serve several critical functions, such as temperature monitoring, power budgeting, fault detection, telemetry and alert.
 
-![](images/image-11.png)
+![I2C Sensor Connectivity Reference Architecture](images/image-11.png)
 
 The above diagram details the reference architecture for I2C sensor connectivity. In this design, the Host CPU interfaces with the "I/O Bridge FPGA" via the PCIe bus. This FPGA facilitates multiple I2C controllers that link to a variety of hardware monitoring components, including PSUs, multi-rail ADCs, hotswap controllers, voltage regulators, and temperature sensors.
 
 ### 10.1.1. Sensor Design Guidelines
 
-All I2C sensor designs must strictly comply with the requirements detailed in "Appendix A: I2C Design Best Practices." In addition to those requirements, the following guidelines apply specifically to hardware sensor design:
+All I2C sensor designs must comply with the requirements in section 15.1, "I2C Design Requirements." In addition, the following requirements apply specifically to hardware sensor design:
 
 -   **Strategic Sensor Placement:** Temperature sensors must be placed in immediate proximity to critical heat sources (e.g., ASIC die, hot-pluggable optics, voltage regulators) to ensure accurate thermal tracking. Layouts must incorporate physical barriers or thermal vias to prevent localized heat sources from causing thermal crosstalk or false readings in adjacent sensors.
 -   **Interrupt-Driven Telemetry:** Implementations should prioritize interrupt-driven alerts (e.g., the SMBus ALERT# pin) over continuous polling. This reduces unnecessary bus traffic, lowers CPU overhead, and enables immediate response to critical thermal or electrical thresholds.
--   **Standard Linux Driver Support:** To minimize software development effort and ensure long-term maintainability, designs must prioritize sensor chips with existing upstream Linux driver support. Utilizing mainlined drivers ensures seamless integration, standardizes telemetry access, and facilitates compatibility with kernel-level diagnostic tools.
--   **Signal Integrity and Protection:** For sensors located on remote or cable-connected subsystems (e.g., fan trays, PSU backplanes), the design must include robust ESD protection and signal level shifters. These measures are essential to maintain bus integrity across long trace lengths or connector interfaces, preventing noise-induced data corruption.
--   **Sensor Accuracy:** Precision requirements depend on the specific sensor type and switch platform; please consult the customer to verify exact specifications.
+-   **Standard Linux Driver Support:** To minimize software development effort and ensure long-term maintainability, designs must prioritize sensor chips with existing upstream Linux driver support. Utilizing mainlined drivers ensures seamless integration, standardizes telemetry access, and facilitates compatibility with kernel-level diagnostic tools. If no component with upstream Linux driver support meets the functional requirements, a component without upstream support may be used, provided that the manufacturer documents the justification and obtains customer agreement, and provides a Linux driver under a GPL-compatible license together with a plan to submit it upstream.
+-   **Signal Integrity and Protection:** For sensors located on remote or cable-connected subsystems (e.g., fan trays, PSU backplanes), the bus must meet the I2C/SMBus electrical and timing requirements at every device across the full trace, cable, and connector path, and must tolerate ESD events at connector interfaces without device damage or bus lockup. Typical measures include ESD protection devices, bus buffers or extenders, and voltage level translation where bus voltage domains differ.
+-   **Sensor Accuracy:** Precision requirements depend on the specific sensor type and switch platform; please consult the customer to verify exact specifications. Unless the customer specifies otherwise, temperature sensors shall have an accuracy of ±2°C or better, and voltage, current, and power monitors shall have an accuracy of ±2% or better, over the platform's operating temperature range.
 
 ## 10.2. Thermal Management
 
@@ -605,7 +633,7 @@ The following specifications outline requirements for air-cooled, liquid-cooled,
 ### 10.2.1. Fan Management
 
 -   **Boot-time Thermal Governance:**
-    -   Upon a switch-level power cycle, all system fans, excluding PSU fans, must autonomously default to a platform-validated safe PWM duty cycle, or to a sufficient fan speed to maintain system cooling when the ASIC is out of reset, to ensure thermal health without relying on the thermal management service.
+    -   Upon a switch-level power cycle, all system fans, excluding PSU fans, must autonomously default to a platform-validated safe PWM duty cycle, or to a sufficient fan speed to maintain system cooling when the switching ASIC is out of reset, to ensure thermal health without relying on the thermal management service.
     -   Operational fan speed adjustment is subsequently managed by a thermal management service based on system requirements.
 -   **Fan Interface and Telemetry (PWM and RPM):**
     -   All system fans, excluding PSU fans, shall be accessible via a controller chip featuring upstream Linux *hwmon* support.
@@ -629,35 +657,26 @@ To ensure robust thermal protection, this architecture incorporates an independe
 
 **Reference Design:**
 
-ASIC temperature reporting mechanisms vary across architectures, with some utilizing clock pin sampling while others rely on on-die thermal diodes. This reference design focuses on architectures using on-die thermal diodes. The core strategy leverages the temperature sensor’s alert or interrupt output to directly drive the enable pin of the ASIC’s voltage regulator, ensuring an autonomous power-off sequence during thermal fault conditions. To enhance flexibility and observability, a CPLD is positioned between the temperature sensor and the voltage regulator. The process is as follows:
+ASIC temperature reporting mechanisms vary across architectures, with some utilizing clock pin sampling while others rely on on-die thermal diodes. This reference design focuses on architectures using on-die thermal diodes. The core strategy leverages the temperature sensor’s alert or interrupt output to directly drive the enable pin of the switching ASIC’s voltage regulator, ensuring an autonomous power-off sequence during thermal fault conditions. To enhance flexibility and observability, a CPLD is positioned between the temperature sensor and the voltage regulator. The process is as follows:
 
--   **Thermal Monitoring:** The ASIC's integrated thermal diode interfaces with an external temperature sensor (e.g., MAX6581) for continuous, real-time core temperature monitoring.
+-   **Thermal Monitoring:** The switching ASIC's integrated thermal diode interfaces with an external remote-diode temperature sensor with an ALERT output and an I2C/SMBus interface for continuous, real-time core temperature monitoring.
 -   **Threshold Configuration:** The system must implement hardware/CPLD default thresholds effective at power-on, with provisions for software to adjust thermal limits via the I2C/SMBus interface.
--   **Autonomous Power-Off Sequence:** Sensor alert signals are routed to a CPLD, which acts as the central control logic. Upon detecting an over-temperature condition, the CPLD automatically de-asserts the voltage regulator's Enable (EN) pin to force an immediate ASIC power-down. This design permits customizable shutdown logic without requiring physical hardware modifications.
+-   **Autonomous Power-Off Sequence:** Sensor alert signals are routed to a CPLD, which acts as the central control logic. Upon detecting an over-temperature condition, the CPLD automatically de-asserts the voltage regulator's Enable (EN) pin to force an immediate switching ASIC power-down. This design permits customizable shutdown logic without requiring physical hardware modifications.
 -   **Shutdown Latching:** The CPLD must latch the shutdown state; the system must only release this state via an explicit software write or a full power cycle, ensuring that ALERT de-assertion does not inadvertently restore power.
--   **Diagnostic Observability:** To facilitate root-cause analysis, any over-temperature event is captured by a "sticky bit" within the CPLD or DPM, providing a persistent record. This bit remains set until explicitly cleared by a write command or a full system power cycle.
+-   **Diagnostic Observability:** To facilitate root-cause analysis, any over-temperature event is captured by a "sticky bit" within the CPLD, providing a persistent record. This bit remains set until explicitly cleared by a write command or a full system power cycle.
 
-![](images/image-12.png)
+![ASIC Overheat Protection Reference Design](images/image-12.png)
 
 ## 10.3. Liquid Leak Detection
 
-The integration of liquid cooling requires a robust, autonomous architecture for leak detection and mitigation. As leak detection capabilities are highly dependent on datacenter facility infrastructure, switch manufacturers should consult with customers to determine specific requirements.
+The integration of liquid cooling requires a robust, autonomous architecture for leak detection and mitigation. The requirements in this section apply to liquid-cooled and hybrid-cooled systems. As leak detection capabilities are highly dependent on datacenter facility infrastructure, switch manufacturers should consult with customers to determine additional requirements, including rack integration. Informative best practices are provided in Appendix A.
 
-The following guidelines outline the best practices for leak detection systems:
-
--   **Design Independence and Autonomy:**
-    -   The leak detection circuit must be hardware-resilient, maintaining full functionality even if the Host CPU or BMC becomes unresponsive. This decoupling ensures that safety mechanisms remain active during system hangs or firmware failures.
--   **Emergency Shutdown Logic (Leakage Response):**
-    -   **Host Shutdown:** Detection of a major liquid leak must trigger an immediate and autonomous shutdown of the Host subsystem (CPU, ASICs, Optics) to eliminate electrical hazard risks.
-    -   **BMC Operational State:** The BMC must remain powered via the Auxiliary Power Domain during a leak event. In this state, the BMC logs the incident, and ensures telemetry is captured for post-mortem analysis.
--   **Hardware and Mechanical Best Practices:**
-    -   **Containment:** Mechanical design shall incorporate localized liquid containment, such as drip pans or trays, to prevent coolant migration beyond the affected module.
-    -   **Sensor Granularity:** Detection sensors (e.g., wire ropes or spot sensors) must be implemented at the component, tray, and rack levels, featuring adjustable sensitivity to distinguish between minor condensation and catastrophic leaks.
-    -   **Verification Mechanisms:** The design must include an integrated "leak injection" mechanism to emulate leak events, facilitating the verification of the detection circuit integrity and end-to-end shutdown software responsiveness.
-    -   **Telemetry and Integrity:** Leak detection logic must interface with the BMC or local CPLD to raise management alerts. The BMC shall periodically verify the integrity of the leak detection circuit to ensure the system is capable of sensing events at all times.
-    -   **Leak Status LED**: The leak status LED must be implemented via hardware control to ensure autonomous indication.
--   **Rack Integration:**
-    -   Consult the customer to define detailed rack integration requirements, including coordination between the switch blade and the rack-level management controller (if applicable).
+-   **Design Independence and Autonomy:** The leak detection circuit must be hardware-resilient, maintaining full functionality even if the Host CPU or BMC becomes unresponsive. This decoupling ensures that safety mechanisms remain active during system hangs or firmware failures.
+-   **Host Shutdown:** Detection of a major liquid leak must trigger an immediate and autonomous shutdown of the Host subsystem (CPU, switching ASICs, Optics) to eliminate electrical hazard risks.
+-   **BMC Operational State:** The BMC must remain powered via the Auxiliary Power Domain during a leak event. In this state, the BMC must log the incident and capture telemetry for post-mortem analysis.
+-   **Verification Mechanism:** The design must include an integrated "leak injection" mechanism to emulate leak events, facilitating the verification of the detection circuit integrity and end-to-end shutdown software responsiveness.
+-   **Telemetry and Integrity:** Leak detection logic must interface with the BMC or a BMC-accessible CPLD to raise management alerts. The BMC shall periodically verify the integrity of the leak detection circuit to ensure the system is capable of sensing events at all times.
+-   **Leak Status LED:** The leak status LED must be implemented via hardware control to ensure autonomous indication.
 
 # 11. Firmware Maintenance and Recovery
 
@@ -667,7 +686,7 @@ Reliable firmware update mechanisms are essential for the maintenance and lifecy
 
 -   **SPI Flash Preference:** Where feasible, designs must prioritize SPI flash memory for firmware storage. This interface enables the use of robust, standard Linux utilities like *flashrom* and *flashcp*, streamlining the software stack and simplifying firmware lifecycle management.
 -   **Avoidance of JTAG for Updates:** JTAG is not a preferred interface for field firmware upgrades. There is no standard Linux ABI for JTAG access from user space, which necessitates vendor-specific, non-portable software implementations and complicates production-level maintenance.
--   **Avoidance of I2C for Firmware Updates:** - Avoid using I2C as the primary method for firmware updates, except where mandated by device standards (e.g., PMBus PSUs, CMIS/SFF optics, small configuration EEPROMs). I2C's limited bandwidth and slow transfer speeds make it unsuitable for most firmware upgrades, as these factors increase the risk of corruption and update failure.
+-   **Avoidance of I2C for Firmware Updates:** Avoid using I2C as the primary method for firmware updates, except where mandated by device standards (e.g., PMBus PSUs, CMIS/SFF optics, small configuration EEPROMs). I2C's limited bandwidth and slow transfer speeds make it unsuitable for most firmware upgrades, as these factors increase the risk of corruption and update failure.
 
 ## 11.2. Firmware Recovery
 
@@ -682,11 +701,11 @@ Hardware design must ensure system resilience against firmware corruption caused
 
 The diagram below outlines the firmware upgrade strategy for the Meta Minipack3 switch. By leveraging SPI flash access, major firmware components can be updated using the standard Linux "flashrom" utility, facilitating rapid enablement during initial board bring-up. Critical firmware—specifically the IOB FPGA and UEFI/BIOS images—requires an independent BMC-based recovery path to ensure system resilience.
 
-![](images/image-13.png)
+![Minipack3 Firmware Upgrade Strategy (Case Study)](images/image-13.png)
 
 # 12. Security
 
-Comprehensive security specifications will be defined in subsequent revisions of this document.
+Comprehensive security specifications will be defined in Revision 1.0.0 of this specification.
 
 # 13. Debuggability
 
@@ -706,19 +725,19 @@ System requirements include:
 
 Critical processor error signals must be routed to BMC-accessible CPLD or FPGA inputs, such as CATERR# (Catastrophic Error) and ERR\[2:0\]# (the error-severity–encoded signals, e.g. correctable / uncorrectable-recoverable / fatal) for Intel CPUs, and FATAL_ERROR_L (asserted on a fatal/uncorrectable error, functionally analogous to CATERR#) and APML_ALERT_L (the APML sideband alert line) for AMD CPUs, etc. This routing enables the BMC to perform immediate, interrupt-driven logging and capture the CPU's architectural state upon a fatal failure.
 
-The Platform Environment Control Interface (PECI) for Intel CPUs or Advanced Platform Management Link (APML) for AMD CPUs shall be implemented to facilitate high-fidelity out-of-band debugging and telemetry capture.
+The platform shall implement the Host CPU's out-of-band management interface, connected to the BMC, to facilitate high-fidelity out-of-band debugging and telemetry capture. The interface must allow the BMC to read processor temperature and error state, and to capture processor error logs, independently of the Host OS state. Examples include the Platform Environment Control Interface (PECI) for Intel CPUs and the Advanced Platform Management Link (APML) for AMD CPUs.
 
 ## 13.3. Hardware Fault Logger
 
 To facilitate robust post-mortem analysis, it’s desired to implement a dedicated non-volatile memory region—such as flash or EEPROM—to capture the system's 'last-will' state, including critical register dumps, error signatures, timestamp, etc. This capture process must be hardware-orchestrated to occur prior to any system reset, bypassing the need for software intervention to guarantee data persistence across power cycles.
 
-Please coordinate specific implementation requirements with the customer.
+Please coordinate specific implementation requirements with the customer. Unless the customer specifies otherwise, the Hardware Fault Logger is optional.
 
 # 14. Host Software Reference Design
 
 The Host software architecture follows the "In-Host" management model, leveraging the Host's computational resources to manage platform devices.
 
-![](images/image-14.png)
+![Host Software Stack](images/image-14.png)
 
 The software stack is organized into three distinct layers to ensure modularity, scalability, and ease of maintenance:
 
@@ -734,11 +753,11 @@ The I/O Bridge (IOB) FPGA is a physical PCIe device containing numerous IP block
 
 Compared to the traditional Linux MFD (Multi-Function Device) framework, the Linux Auxiliary bus provides a more flexible and decoupled architecture and simplifies driver lifecycle management for each I/O controller.
 
-![](images/image-15.png)
+![IOB FPGA Driver Architecture](images/image-15.png)
 
 ### 14.1.1. FPGA I/O Controller Discovery
 
-The FPGA PCIe Umbrella driver requires a specific set of configuration parameters to enumerate I/O controllers, including I/O controller type, register offsets, controller counts, bus frequency, and client device settings (e.g., for SPI). These parameters can be provided to the driver using one of the following methods:
+The IOB FPGA PCIe Umbrella driver requires a specific set of configuration parameters to enumerate I/O controllers, including I/O controller type, register offsets, controller counts, bus frequency, and client device settings (e.g., for SPI). These parameters can be provided to the driver using one of the following methods:
 
 1.  **ACPI Table:** I/O controller configurations are embedded directly within the ACPI tables, facilitating standard, ACPI-compliant device discovery.
 2.  **FPGA Memory-Mapped Space:** Configuration data is stored in a dedicated, self-describing memory region accessible via the FPGA's memory-mapped space.
@@ -791,33 +810,37 @@ Platform services—including sensor monitoring, fan control, and firmware upgra
 
 -   <https://github.com/facebook/fboss/tree/main/fboss/platform>
 
-# Appendix A: I2C Design Best Practices
+# 15. Hardware Bus and Controller Requirements
 
-Robust I2C bus design is critical for system stability, signal integrity, and effective maintenance. The following best practices shall be adhered to for all I2C topologies:
+This section defines the low-level hardware requirements for the I2C and SPI buses and the I/O Bridge FPGA that the preceding sections rely on.
 
--   **Avoid Multi-Master Topologies:** Multi-master I2C environments should be avoided whenever possible. A single-master topology is mandatory to minimize complexity in I2C driver design, simplify failure analysis, and ensure predictable bus behavior.
+## 15.1. I2C Design Requirements
+
+Robust I2C bus design is critical for system stability, signal integrity, and effective maintenance. The following requirements apply to all I2C topologies:
+
+-   **Avoid Multi-Master Topologies:** A single-master topology is required to minimize complexity in I2C driver design, simplify failure analysis, and ensure predictable bus behavior. Where a multi-master topology is unavoidable, the arbitration scheme must be documented and agreed with the customer.
 -   **Controller Reset:** Expose a reset register interface for the entire I2C controller and bus, enabling autonomous recovery from "stuck-at-low" fault conditions.
 -   **I2C Controller Alignment:** I2C controller hardware design must align with the Linux I2C controller subsystem.
 -   **Limit Multiplexer Depth:** The use of multiple layers of I2C multiplexers introduces unnecessary complexity and potential points of failure. The design must restrict I2C multiplexer usage to a single level.
 -   **Avoid Multiple I2C Muxes per Bus:** Avoid placing multiple I2C multiplexers on the same I2C bus. Use multiple I2C controllers if possible, as sharing a bus with multiple muxes can potentially lead to address conflicts when channels are selected on multiple MUXes simultaneously.
 -   **Independent Multiplexer Reset:** All I2C multiplexers must be independently resettable via CPLD or FPGA. This capability is mandatory to isolate and recover the bus if a downstream device pulls the SCL or SDA lines low.
 -   **Clock Frequency Standardization:** To ensure interoperability, I2C controllers must support adjustable clock frequencies, with 100KHz established as the default baseline unless specific device requirements dictate otherwise.
--   **I2C Client Device Selection:** The selection of I2C client devices must prioritize components with existing upstream Linux driver support. Using devices with mainlined drivers reduces the engineering effort required for platform enablement and ensures long-term maintainability through standard kernel updates.
+-   **I2C Client Device Selection:** The selection of I2C client devices must prioritize components with existing upstream Linux driver support. Using devices with mainlined drivers reduces the engineering effort required for platform enablement and ensures long-term maintainability through standard kernel updates. The exception path defined for sensors in section 10.1.1 applies.
 -   **Electrical Specification Compliance:** Select devices that adhere to SMBus electrical specifications—particularly regarding current sink capabilities—to ensure interoperability with standard I2C bus pull-up configurations.
 -   **Implement Isolated Buffers:** For sensitive I2C devices or components not intended for regular access during normal system operations, the use of isolated buffers is required. This effectively isolates these devices from the main bus, preventing bus contention or interference from propagating during standard operation.
 
-# Appendix B: SPI Design Best Practices
+## 15.2. SPI Design Requirements
 
-Robust SPI bus design is essential for maintaining signal integrity and system reliability, particularly at higher clock frequencies. The following best practices shall be adhered to for all SPI topologies:
+Robust SPI bus design is essential for maintaining signal integrity and system reliability, particularly at higher clock frequencies. The following requirements apply to all SPI topologies:
 
 -   **Minimize Chip Select Complexity:** Avoid cascading decoders or complex logic for Chip Select (CS) generation. Direct mapping of CS signals from the controller to the peripheral is strongly preferred to reduce signal propagation delay, timing skew, and complexity during debugging.
 -   **Prioritize Point-to-Point Topologies:** Where possible, design for point-to-point connections rather than shared SPI buses. Shared buses increase capacitive loading and potential for bus contention, which can compromise signal integrity at higher frequencies.
 -   **Standardize Clock Phase and Polarity:** To ensure platform consistency and simplified driver development, standard SPI modes (e.g., Mode 0) should be adopted as the default configuration for all peripherals, unless device-specific requirements dictate otherwise.
 -   **Leverage Standard Drivers:** Prioritize components supported by upstream Linux SPI drivers. This ensures compatibility with the standard kernel infrastructure and simplifies platform enablement and maintenance.
 
-# Appendix C: I/O Bridge FPGA Best Practices
+## 15.3. I/O Bridge FPGA Requirements
 
-The I/O Bridge (IOB) FPGA serves as the critical aggregation point for platform management. It encapsulates a collection of I/O controllers (e.g., I2C, SPI, GPIO, MDIO) that allow the Host CPU to manage essential platform devices such as sensors, EEPROMs, fans, CPLDs, and flashes. Design principles for this component are summarized below:
+The I/O Bridge (IOB) FPGA serves as the critical aggregation point for platform management. It encapsulates a collection of I/O controllers (e.g., I2C, SPI, GPIO, MDIO) that allow the Host CPU to manage essential platform devices such as sensors, EEPROMs, fans, CPLDs, and flashes. The design requirements for this component are summarized below:
 
 -   **PCIe Connectivity:** The IOB must connect to the Host CPU via PCIe. This interface is mandated to support high-speed data transfer and allows for memory-mapped software access, which significantly simplifies driver development compared to low-speed buses.
 -   **State Retention:** The IOB FPGA must ensure that I/O controller output states—such as optics reset/LPMode, LED states, and GPIO output levels—are retained across Host CPU and PCIe link resets. These states must only be cleared by a switch-level power cycle or an explicit software request.
@@ -826,34 +849,81 @@ The I/O Bridge (IOB) FPGA serves as the critical aggregation point for platform 
 <!-- -->
 
 -   **Independent Reset:** Whenever possible, IP blocks should be designed to support independent resets, ensuring that a fault in one controller (e.g., a locked I2C bus) does not impact the availability of other platform management functions.
--   **Interrupt Handling:** It’s desired to implement consistent interrupt signaling across all internal IP blocks. The top-level FPGA driver should provide efficient interrupt demultiplexing to the corresponding child drivers.
--   **Auxiliary Bus Integration:** The FPGA driver must utilize the Linux auxiliary bus framework to manage internal IP blocks, providing a standardized, modular structure for resource allocation and device lifecycle management.
+-   **Interrupt Handling:** It’s desired to implement consistent interrupt signaling across all internal IP blocks. The top-level IOB FPGA driver should provide efficient interrupt demultiplexing to the corresponding child drivers.
+-   **Auxiliary Bus Integration:** The IOB FPGA driver must utilize the Linux auxiliary bus framework to manage internal IP blocks, providing a standardized, modular structure for resource allocation and device lifecycle management.
 
-# Appendix D: Customer Consultation Checklist
+# 16. References
 
-Below table summarizes all the areas that need further clarification from customers:
+The following documents are referenced in this specification. Where a revision is listed, that revision or a later revision applies. A listed revision identifies the document used to interpret this specification; it does not by itself mandate a minimum interface speed or feature level.
 
-| **Item** | **Description**                                              | **Reference Section**                     |
-|----------|--------------------------------------------------------------|-------------------------------------------|
-| 1        | Power Supply Unit (PSU) Input Specifications (AC/DC/Voltage) | Power Supply Module                       |
-| 2        | Front-Panel OOB Ethernet Port Configuration                  | Out-of-band Ethernet Access               |
-| 3        | Front-Panel Serial Port Multiplexing                         | Serial Console Access                     |
-| 4        | Optics Initial Power-On State                                | Optical Module Access                     |
-| 5        | Optics Firmware Upgrade I2C Bus Speed                        | Optical Module Access                     |
-| 6        | Front-Panel LED Operational Logic                            | Front-panel LED Management                |
-| 7        | IDPROM Data Format                                           | APE Identification (IDPROM Specification) |
-| 8        | Hardware Monitoring Sensor Accuracy                          | Hardware Sensors Monitoring               |
-| 9        | Liquid Leak Detection Architecture                           | Liquid Leak Detection                     |
-| 10       | Hardware Fault Logger Implementation                         | Hardware Fault Logger                     |
+[1] "Key words for use in RFCs to Indicate Requirement Levels", 1997, IETF RFC 2119 (BCP 14), <https://www.rfc-editor.org/rfc/rfc2119>
 
-# Appendix E: Glossary
+[2] "Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words", 2017, IETF RFC 8174 (BCP 14), <https://www.rfc-editor.org/rfc/rfc8174>
+
+[3] "PMBus Power System Management Protocol Specification, Part I and Part II", 2015, PMBus, Revision 1.3.1, <https://pmbus.org>
+
+[4] "System Management Bus (SMBus) Specification", 2014, SBS Implementers Forum, Version 3.0, <http://smbus.org/specs/>
+
+[5] "I2C-bus Specification and User Manual (UM10204)", 2021, NXP Semiconductors, Revision 7.0, <https://www.nxp.com/docs/en/user-guide/UM10204.pdf>
+
+[6] "PCI Express Base Specification", 2017, PCI-SIG, Revision 4.0, <https://pcisig.com/specifications>
+
+[7] "Universal Serial Bus Specification", 2000, USB Implementers Forum, Revision 2.0, <https://www.usb.org/document-library/usb-20-specification>
+
+[8] "Intelligent Platform Management Interface Specification, Second Generation", 2013, Intel, HP, NEC, Dell, v2.0 Revision 1.1
+
+[9] "Enhanced Serial Peripheral Interface (eSPI) Base Specification", 2016, Intel, Revision 1.0
+
+[10] "Network Controller Sideband Interface (NC-SI) Specification", 2015, DMTF DSP0222, Version 1.1.0, <https://www.dmtf.org/standards/published_documents>
+
+[11] "System Management BIOS (SMBIOS) Reference Specification", 2015, DMTF DSP0134, Version 3.0.0, <https://www.dmtf.org/standards/published_documents>
+
+[12] "IEEE Standard for Ethernet", 2022, IEEE Std 802.3-2022, <https://standards.ieee.org/>
+
+[13] "Common Management Interface Specification (CMIS)", 2021, OIF, Revision 5.0, <https://www.oiforum.com/>
+
+[14] "Network Time Protocol Version 4: Protocol and Algorithms Specification", 2010, IETF RFC 5905, <https://www.rfc-editor.org/rfc/rfc5905>
+
+[15] "Unified Extensible Firmware Interface (UEFI) Specification", 2019, UEFI Forum, Version 2.8, <https://uefi.org/specifications>
+
+[16] "Meta EEPROM Format", Meta FBOSS documentation, Version 6, <https://facebook.github.io/fboss/docs/platform/meta_eeprom_format_v6/>
+
+[17] "ONIE TlvInfo EEPROM Format", OCP ONIE Project, <https://opencomputeproject.github.io/onie/design-spec/hw_requirements.html>
+
+[18] "The Linux Kernel Documentation" (I2C, GPIO, HWMON, LED class, watchdog, and auxiliary bus interfaces), Linux kernel community, <https://www.kernel.org/doc/html/latest/>
+
+# Appendix A: Liquid Leak Detection Best Practices
+
+The following informative best practices supplement the requirements in section 10.3:
+
+-   **Containment:** Mechanical design should incorporate localized liquid containment, such as drip pans or trays, to prevent coolant migration beyond the affected module.
+-   **Sensor Granularity:** Detection sensors (e.g., wire ropes or spot sensors) should be implemented at the component, tray, and rack levels, featuring adjustable sensitivity to distinguish between minor condensation and catastrophic leaks.
+-   **Rack Integration:** Detailed rack integration requirements, including coordination between the switch blade and the rack-level management controller (if applicable), should be defined with the customer.
+
+# Appendix B: Customer Consultation Checklist
+
+The table below summarizes the areas that need further clarification from customers, and the default that applies when the customer does not specify a requirement. The normative default is stated in the referenced section.
+
+| **Item** | **Description**                                              | **Default**                                                  | **Reference Section**                     |
+|----------|--------------------------------------------------------------|--------------------------------------------------------------|-------------------------------------------|
+| 1        | Power Supply Unit (PSU) Input Specifications (AC/DC/Voltage) | None; must be specified by the customer                      | 7.1 Power Supply Module                   |
+| 2        | Front-Panel OOB Ethernet Port Configuration                  | 2x1G RJ45 (Design #1)                                        | 8.1 Out-of-band Ethernet Access           |
+| 3        | Front-Panel Serial Port Multiplexing                         | Direct connection to the BMC (no MUX)                        | 8.2 Serial Console Access                 |
+| 4        | Optics Initial Power-On State                                | In reset and in low-power mode                               | 8.3 Optical Module Access                 |
+| 5        | Optics Firmware Upgrade I2C Bus Speed                        | At least 400KHz                                              | 8.3 Optical Module Access                 |
+| 6        | Front-Panel LED Operational Logic                            | Table in section 8.5.2                                       | 8.5 Front-panel LED Management            |
+| 7        | IDPROM Data Format                                           | Meta EEPROM format v6                                        | 9.3 APE Identification                    |
+| 8        | Hardware Monitoring Sensor Accuracy                          | Temperature ±2°C; voltage/current/power ±2%                  | 10.1 Hardware Sensors Monitoring          |
+| 9        | Liquid Leak Detection Architecture                           | Requirements in section 10.3                                 | 10.3 Liquid Leak Detection                |
+| 10       | Hardware Fault Logger Implementation                         | Optional                                                     | 13.3 Hardware Fault Logger                |
+
+# Appendix C: Glossary
 
 -   **ACPI (Advanced Configuration and Power Interface):** A standard for device configuration and power management.
 -   **APE (Atomic Platform Entity):** The smallest unit of hardware trackable and manageable by platform software.
--   **ASIC (Application-Specific Integrated Circuit):** The primary switching chip responsible for data plane traffic.
+-   **ASIC (Application-Specific Integrated Circuit):** A custom integrated circuit. See "Switching ASIC" in section 4.2.
 -   **BMC (Baseboard Management Controller):** The independent, always-on subsystem responsible for system supervision, power sequencing, and fail-safe recovery.
 -   **CPLD (Complex Programmable Logic Device):** A hardware component used for glue logic, reset management, and I/O control.
--   **DPM (Digital Power Manager):** A programmable power-management device used for power sequencing, monitoring, and fault recording.
 -   **GPIO (General Purpose Input/Output):** Generic pins on an integrated circuit whose behavior is controllable by software.
 -   **FPGA (Field Programmable Gate Array):** An integrated circuit designed to be configured after manufacturing; used here as an I/O Bridge (IOB).
 -   **FRU (Field Replaceable Unit):** A hardware module designed for easy removal and replacement by technicians.
